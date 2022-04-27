@@ -5,8 +5,6 @@ extern crate alloc;
 use alloc::vec::Vec;
 use core::fmt::{self, Debug, Formatter};
 
-use either::Either;
-
 pub type Step<'a, Output, Error> = (&'a [u8], Result<Output, Error>);
 
 pub struct TakeError<'a>(
@@ -137,13 +135,12 @@ pub fn tag<'a, 'b, Error: From<TagError<'a>>>(
 pub fn or<'a, Output1, Output2, Error: From<Error2>, Error1, Error2>(
     one: impl Fn(&'a [u8]) -> Step<'a, Output1, Error1>,
     two: impl Fn(&'a [u8]) -> Step<'a, Output2, Error2>,
-) -> impl Fn(&'a [u8]) -> Step<'a, Either<Output1, Output2>, Error> {
-    move |input| match (one)(input) {
-        (rest, Ok(x)) => (rest, Ok(Either::Left(x))),
-        _ => match (two)(input) {
-            (rest, Ok(x)) => (rest, Ok(Either::Right(x))),
-            (rest, Err(e)) => (rest, Err(e.into())),
-        },
+) -> impl Fn(&'a [u8]) -> Step<'a, (Option<Output1>, Option<Output2>), Error> {
+    move |input| {
+        let (rest, result1) = (one)(input);
+        let input = if result1.is_ok() { rest } else { input };
+        let (rest, result2) = (two)(input);
+        (rest, Ok((result1.ok(), result2.ok())))
     }
 }
 

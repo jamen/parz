@@ -159,3 +159,76 @@ pub fn and<'a, Output1, Output2, Error: From<Error1> + From<Error2>, Error1, Err
         }
     }
 }
+
+macro_rules! num_impl {
+    (
+        $(#[$m:meta])*
+        $num_ty:ty, $endian_fn:ident, $fn_name:ident, $err_name:ident;
+        $($rest:tt)*
+    ) => {
+        pub struct $err_name<'a>(&'a [u8]);
+
+        $(#[$m])*
+        pub fn $fn_name<'a, Error: From<$err_name<'a>>>(
+            input: &'a [u8]
+        ) -> Step<'a, $num_ty, $err_name> {
+            let (out, rest) = input.split_at(core::mem::size_of::<$num_ty>());
+            let out = match out.try_into() {
+                Ok(x) => x,
+                Err(_) => return (input, Err($err_name(input).into())),
+            };
+            (rest, Ok(<$num_ty>::$endian_fn(out)))
+        }
+
+        num_impl! { $($rest)* }
+    };
+    () => {}
+}
+
+num_impl! {
+    /// Parse unsigned 16-bit little-endian integer.
+    u16, from_le_bytes, u16l, U16LError;
+    /// Parse signed 16-bit little-endian integer.
+    i16, from_le_bytes, i16l, I16LError;
+    /// Parse unsigned 16-bit big-endian integer.
+    u16, from_be_bytes, u16b, U16BError;
+    /// Parse signed 16-bit big-endian integer.
+    i16, from_be_bytes, i16b, I16BError;
+
+    /// Parse unsigned 32-bit little-endian integer.
+    u32, from_le_bytes, u32l, U32LError;
+    /// Parse signed 32-bit little-endian integer.
+    i32, from_le_bytes, i32l, I32LError;
+    /// Parse unsigned 32-bit big-endian integer.
+    u32, from_be_bytes, u32b, U32BError;
+    /// Parse signed 32-bit big-endian integer.
+    i32, from_be_bytes, i32b, I32BError;
+
+    /// Parse unsigned 64-bit little-endian integer.
+    u64, from_le_bytes, u64l, U64LError;
+    /// Parse signed 64-bit little-endian integer.
+    i64, from_le_bytes, i64l, I64LError;
+    /// Parse unsigned 64-bit big-endian integer.
+    u64, from_be_bytes, u64b, U64BError;
+    /// Parse signed 64-bit big-endian integer.
+    i64, from_be_bytes, i64b, I64BError;
+
+    /// Parse unsigned 128-bit little-endian integer.
+    u128, from_le_bytes, u128l, U128LError;
+    /// Parse signed 128-bit little-endian integer.
+    i128, from_le_bytes, i128l, I128LError;
+    /// Parse unsigned 128-bit big-endian integer.
+    u128, from_be_bytes, u128b, U128BError;
+    /// Parse signed 128-bit big-endian integer.
+    i128, from_be_bytes, i128b, I128BError;
+
+    /// Parse 32-bit little-endian float.
+    f32, from_le_bytes, f32l, F32LError;
+    /// Parse 32-bit big-endian float.
+    f32, from_be_bytes, f32b, F32BError;
+
+    /// Parse 64-bit little-endian float.
+    f64, from_le_bytes, f64l, F64LError;
+    /// Parse 64-bit big-endian float.
+    f64, from_be_bytes, f64b, F64BError;
+}

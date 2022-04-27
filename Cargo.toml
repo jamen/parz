@@ -2,6 +2,14 @@
 name = "parz"
 version = "0.0.1"
 edition = "2021"
+description = "Small parser combinator library"
+license = "MIT OR Apache2"
+homepage = "https://github.com/jamen/parz"
+repository = "https://github.com/jamen/parz.git"
+readme = "readme.md"
 
 [dependencies]
-bytemuck = "1.9.1"
+bytemuck = { version = "1.9.1", optional = true }
+
+[features]
+bytemuck = [ "dep:bytemuck" ]

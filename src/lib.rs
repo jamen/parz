@@ -1,3 +1,33 @@
+//! Minimal parser combinators
+//!
+//! ## Basic parsers
+//!
+//! | Items | Description | Example |
+//! |---|---|---|
+//! | [`and`] | Combine two parsers where both must succeed. | `and(u16l, u32l)` |
+//! | [`or`] | Combine two parsers where at least one must succeed. | `or(u16l, u32l)` |
+//! | [`take`] | Take N bytes. | `take(42)` |
+//! | [`seq`] | Run a parser N times in sequence. | `seq(u32l, 42)` |
+//! | [`tag`] | Match a sequence of bytes. | `tag("hello")` |
+//! | [`opt`] | Allow a parser to fail. | `opt(tag("hello"))` |
+//! | [`pod`] | Transmute bytes into a type. **Requires the `bytemuck` feature** | `seq(pod::<MyType>, 4)` |
+//! | [`finish`] | Ensure there is no bytes left | `finish(seq(u16l, 128))` |
+//!
+//! ## Number parsers
+//!
+//! | | `u8` | `u16` | `u32` | `u64` | `u128` | `f32` | `f64` |
+//! |---|---|---|---|---|---|---|---|
+//! | **Little Endian** | [`byte`] | [`u16l`] | [`u32l`] | [`u64l`] | [`u128l`] | [`f32l`] | [`f64l`] |
+//! | **Big Endian** | [`byte`] | [`u16b`] | [`u32b`] | [`u64b`] | [`u128b`] | [`f32b`] | [`f64b`] |
+//!
+//! ## Features
+//!
+//! - `bytemuck`: Enables the [`pod`] parser
+//! ## MSRV
+//!
+//! Minimum supported Rust version is: 1.60
+//!
+
 #![no_std]
 
 extern crate alloc;
@@ -6,6 +36,15 @@ use alloc::vec::Vec;
 use core::fmt::{self, Debug, Formatter};
 
 pub type Step<'a, Output, Error> = (&'a [u8], Result<Output, Error>);
+
+pub struct ByteError;
+
+pub fn byte<'a, Error: From<ByteError>>(input: &'a [u8]) -> Step<'a, u8, Error> {
+    match input.split_first() {
+        Some((&byte, rest)) => (rest, Ok(byte)),
+        None => (input, Err(ByteError.into())),
+    }
+}
 
 pub struct TakeError<'a>(
     /// Where the error happened
@@ -72,9 +111,6 @@ pub fn seq<'a, Output, Error: From<SeqError<'a, ChildError>>, ChildError>(
     }
 }
 
-// pub fn seq_array<const N: usize>
-
-// TODO: Replace with `!` type when it stablizes
 pub enum OptError {}
 
 pub fn opt<'a, Output, Error, Parser>(
@@ -89,7 +125,6 @@ pub fn opt<'a, Output, Error, Parser>(
     }
 }
 
-#[derive(Debug)]
 pub struct FinishError<'a>(
     /// Where the error happened
     pub &'a [u8],
@@ -110,7 +145,6 @@ pub fn finish<'a, Output, Error: From<ChildError> + From<FinishError<'a>>, Child
     }
 }
 
-#[derive(Debug)]
 pub struct TagError<'a>(
     /// Where the error happened
     pub &'a [u8],
@@ -157,6 +191,34 @@ pub fn and<'a, Output1, Output2, Error: From<Error1> + From<Error2>, Error1, Err
             },
             (_, Err(e)) => (before, Err(e.into())),
         }
+    }
+}
+
+#[cfg(feature = "bytemuck")]
+use bytemuck::{Pod, PodCastError};
+
+#[cfg(feature = "bytemuck")]
+pub struct PodError<'a> {
+    /// Where the error happened
+    pub at: &'a [u8],
+    pub pod_error: PodCastError,
+}
+
+#[cfg(feature = "bytemuck")]
+pub fn pod<'a, Output: Pod, Error: From<PodError<'a>>>(
+    input: &'a [u8],
+) -> Step<'a, &'a Output, Error> {
+    let (rest, bytes) = input.split_at(core::mem::size_of::<Output>());
+    match bytemuck::try_from_bytes(bytes) {
+        Ok(x) => (rest, Ok(x)),
+        Err(pod_error) => (
+            input,
+            Err(PodError {
+                at: input,
+                pod_error,
+            }
+            .into()),
+        ),
     }
 }
 

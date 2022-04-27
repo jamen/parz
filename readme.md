@@ -1,3 +1,5 @@
 # parz
 
-Parser combinators for Rust
+Small parser combinator library
+
+[Docs](https://docs.rs/parz)

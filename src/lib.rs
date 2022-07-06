@@ -1,4 +1,6 @@
-//! Minimal parser combinators
+//! Small parser combinator library
+//!
+//!
 //!
 //! ## Basic parsers
 //!
@@ -11,7 +13,6 @@
 //! | [`tag`] | Match a sequence of bytes. | `tag("hello")` |
 //! | [`opt`] | Allow a parser to fail. | `opt(tag("hello"))` |
 //! | [`pod`] | Transmute bytes into a type. **Requires the `bytemuck` feature** | `seq(pod::<MyType>, 4)` |
-//! | [`finish`] | Ensure there is no bytes left | `finish(seq(u16l, 128))` |
 //!
 //! ## Number parsers
 //!
@@ -131,17 +132,16 @@ pub struct FinishError<'a>(
 );
 
 pub fn finish<'a, Output, Error: From<ChildError> + From<FinishError<'a>>, ChildError>(
-    child: impl Fn(&'a [u8]) -> Step<'a, Output, ChildError>,
-) -> impl Fn(&'a [u8]) -> Step<'a, Output, Error> {
-    move |input| {
-        let (rest, result) = (child)(input);
-        match result {
-            Ok(x) => match input.len() {
-                0 => (rest, Ok(x)),
-                _ => (input, Err(FinishError(input).into())),
-            },
-            Err(e) => (input, Err(e.into())),
-        }
+    input: &'a [u8],
+    parser: impl Fn(&'a [u8]) -> Step<'a, Output, ChildError>,
+) -> Result<Output, Error> {
+    let (rest, result) = (parser)(input);
+    match result {
+        Ok(x) => match rest.len() {
+            0 => Ok(x),
+            _ => Err(FinishError(input).into()),
+        },
+        Err(e) => Err(e.into()),
     }
 }
 
